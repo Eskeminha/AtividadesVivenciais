@@ -5,14 +5,16 @@
  * Versão inicial: 7/4/2017
  * Última atualização em 13/08/2024
  * 
+ * Modificado pelos alunos Anderson Koefender, Lucas Luan Rost e Raphael Ferracioli
+ * para a Atividade Vivencial 01.
+ *  
  * Modificado para Atividade Vivencial 01 pelos alunos
  * 	Anderson Koefender
  * 	Lucas Luan Rost
  * 	Raphael Ferracioli
- *
  */
 
-#include <iostream>
+ #include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
@@ -36,20 +38,8 @@ struct Triangle {
 
 vector<Triangle> triangles;
 
-// Paleta de cores predefinidas
-vector<GLfloat> colors = {
-    1.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 1.0f,
-    1.0f, 1.0f, 0.0f,
-    1.0f, 0.0f, 1.0f,
-    0.0f, 1.0f, 1.0f
-};
-
-int iColor = 0;
-
-// Esta funcao cria um triangulo com base em tres pontos e cor da paleta
-GLuint createTriangle(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2, GLfloat r, GLfloat g, GLfloat b) {
+// Esta funcao cria um triangulo com base em tres pontos e cor aleatoria
+GLuint createTriangle(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2, GLfloat& r, GLfloat& g, GLfloat& b) {
     GLfloat vertices[] = {
         x0, y0, 0.0f,
         x1, y1, 0.0f,
@@ -68,6 +58,11 @@ GLuint createTriangle(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1, GLfloat x2
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // Gera cor aleatoria para o triangulo
+    r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+    g = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+    b = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 
     Triangle t = { VAO, VBO, r, g, b };
     triangles.push_back(t);
@@ -94,19 +89,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             for (int i = 0; i < 3; i++) {
                 cout << "(" << clickedPoints[i * 2] << ", " << clickedPoints[i * 2 + 1] << ")\n";
             }
-
-            GLfloat r = colors[iColor % colors.size()];
-            GLfloat g = colors[(iColor + 1) % colors.size()];
-            GLfloat b = colors[(iColor + 2) % colors.size()];
-            iColor = (iColor + 3) % colors.size();
-
+            GLfloat r, g, b;
             createTriangle(
                 clickedPoints[0], clickedPoints[1],
                 clickedPoints[2], clickedPoints[3],
                 clickedPoints[4], clickedPoints[5],
                 r, g, b
             );
-
             clickedPoints.clear();
         }
     }
