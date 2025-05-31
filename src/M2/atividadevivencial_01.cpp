@@ -14,7 +14,7 @@
  * 	Raphael Ferracioli
  */
 
- #include <iostream>
+#include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
