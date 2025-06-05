@@ -323,8 +323,18 @@ int main()
     GLuint quadVAO = CreateQuadVAO();
 
     // 6.6 Carrega texturas (exemplo: duas texturas diferentes)
-    GLuint tex1 = loadTexture("../assets/sprites/microbio.png");
+    GLuint background_sky = loadTexture("../assets/sprites/sky.png");
+	GLuint clouds = loadTexture("../assets/sprites/clouds_1.png");
+	GLuint clouds2 = loadTexture("../assets/sprites/clouds_2.png");
+	GLuint clouds3 = loadTexture("../assets/sprites/clouds_3.png");
+	GLuint clouds4 = loadTexture("../assets/sprites/clouds_4.png");
+	GLuint rocks = loadTexture("../assets/sprites/rocks_1.png");
+	GLuint rocks2 = loadTexture("../assets/sprites/rocks_2.png");
+	GLuint jare = loadTexture("../assets/sprites/jare.png");
+	
+
     GLuint tex2 = loadTexture("../assets/sprites/enemies-spritesheet1.png");
+
     // Adicione quantas texturas quiser:
     // GLuint tex3 = loadTexture("assets/textures/sprite3.png");
 
