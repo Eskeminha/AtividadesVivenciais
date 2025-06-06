@@ -388,11 +388,11 @@ int main()
 
     // 6.6.1 Carrega texturas de parallax (camadas extras; substitua pelos arquivos reais)
     GLuint parallaxTex[5];
-    parallaxTex[0] = loadTexture("PARALAX1.png"); // camada mais distante
-    parallaxTex[1] = loadTexture("PARALAX2.png");
-    parallaxTex[2] = loadTexture("PARALAX3.png");
-    parallaxTex[3] = loadTexture("PARALAX4.png");
-    parallaxTex[4] = loadTexture("PARALAX5.png"); // camada mais próxima
+    parallaxTex[0] = loadTexture("parallax1.png"); // camada mais distante
+    parallaxTex[1] = loadTexture("parallax2.png");
+    parallaxTex[2] = loadTexture("parallax3.png");
+    parallaxTex[3] = loadTexture("parallax4.png");
+    parallaxTex[4] = loadTexture("parallax5.png"); // camada mais próxima
 
     // 6.7 Cria instâncias de Sprite
     std::vector<Sprite> sprites;
