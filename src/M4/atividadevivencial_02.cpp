@@ -19,8 +19,8 @@
  *   - Movimento para a direita/esquerda com limite de tela.
  *   - Flip horizontal ao andar para a esquerda.
  *   - Pulo com física simples (velocidade inicial + gravidade).
- *   - Efeito parallax de 5 camadas usando texturas extras ("PARALAX1.png" até "PARALAX5.png").
- *   - Mantidos todos os comentários originais e as texturas já carregadas.
+ *   - Efeito parallax de 5 camadas usando texturas extras ("parallax1.png" até "parallax5.png").
+ *   - Mantidos todos os comentários originais e as texturas já carregadas, exceto o SKY, que foi removido.
  */
 
 #include <iostream>
@@ -254,9 +254,9 @@ public:
     void Draw(const glm::mat4& projection) {
         glm::mat4 model = glm::mat4(1.0f);
 
-        // 1. Translada para a posição desejada (canto inferior-esquerdo do sprite)
+        // 1. Translada para a posição desejada (posição refere-se ao CENTRO do sprite)
         model = glm::translate(model, glm::vec3(position, 0.0f));
-        // 2. Move o pivô para o centro do quad
+        // 2. Move o pivô para o centro do quad (antes da rotação)
         model = glm::translate(model, glm::vec3(0.5f * scale.x, 0.5f * scale.y, 0.0f));
         // 3. Rotaciona (se houver rotação)
         model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -325,7 +325,6 @@ private:
 // recebe uma instância de Sprite, a janela e um valor qtd para movimentar conforme teclas
 void move(Sprite& sprite, GLFWwindow* window, float qtd) {
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-        // testa se chegou no limite
         sprite.andaDireita(qtd);
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
@@ -372,41 +371,32 @@ int main()
     GLuint quadVAO = CreateQuadVAO();
 
     // 6.6 Carrega texturas (exemplo: várias texturas já existentes)
-    GLuint background_sky = loadTexture("../assets/sprites/sky.png");
-    GLuint clouds         = loadTexture("../assets/sprites/clouds_1.png");
-    GLuint clouds2        = loadTexture("../assets/sprites/clouds_2.png");
-    GLuint clouds3        = loadTexture("../assets/sprites/clouds_3.png");
-    GLuint clouds4        = loadTexture("../assets/sprites/clouds_4.png");
-    GLuint rocks          = loadTexture("../assets/sprites/rocks_1.png");
-    GLuint rocks2         = loadTexture("../assets/sprites/rocks_2.png");
-    GLuint jare           = loadTexture("../assets/sprites/jare.png");
-    GLuint fafare         = loadTexture("../assets/sprites/fafare.png");
-    GLuint raphare        = loadTexture("../assets/sprites/raphare.png");
-
-    // Carrega textura extra apenas como exemplo comentado:
-    // GLuint tex3 = loadTexture("assets/textures/sprite3.png");
+    GLuint clouds   = loadTexture("../assets/sprites/clouds_1.png");
+    GLuint clouds2  = loadTexture("../assets/sprites/clouds_2.png");
+    GLuint clouds3  = loadTexture("../assets/sprites/clouds_3.png");
+    GLuint clouds4  = loadTexture("../assets/sprites/clouds_4.png");
+    GLuint rocks    = loadTexture("../assets/sprites/rocks_1.png");
+    GLuint rocks2   = loadTexture("../assets/sprites/rocks_2.png");
+    GLuint jare     = loadTexture("../assets/sprites/jare.png");
+    GLuint fafare   = loadTexture("../assets/sprites/fafare.png");
+    GLuint raphare  = loadTexture("../assets/sprites/raphare.png");
 
     // 6.6.1 Carrega texturas de parallax (camadas extras; substitua pelos arquivos reais)
     GLuint parallaxTex[5];
-    parallaxTex[0] = loadTexture("parallax1.png"); // camada mais distante
-    parallaxTex[1] = loadTexture("parallax2.png");
-    parallaxTex[2] = loadTexture("parallax3.png");
-    parallaxTex[3] = loadTexture("parallax4.png");
-    parallaxTex[4] = loadTexture("parallax5.png"); // camada mais próxima
+    parallaxTex[0] = loadTexture("../assets/sprites/parallax1.png"); // camada mais distante
+    parallaxTex[1] = loadTexture("../assets/sprites/parallax2.png");
+    parallaxTex[2] = loadTexture("../assets/sprites/parallax3.png");
+    parallaxTex[3] = loadTexture("../assets/sprites/parallax4.png");
+    parallaxTex[4] = loadTexture("../assets/sprites/parallax5.png"); // camada mais próxima
 
     // 6.7 Cria instâncias de Sprite
     std::vector<Sprite> sprites;
 
-    // ROCKS (fundo estático)
-    sprites.emplace_back(shaderProgram, quadVAO, rocks);
-    sprites.back().SetPosition(400.0f, 300.0f);    // posicionado em (400,300)
-    sprites.back().SetScale(800.0f, 600.0f);       // 800×600 px
-    sprites.back().SetRotation(0.0f);
-
-    // JARE ON TOP (jogador/persónage)
+    // JARE ON TOP (jogador/personagem)
     sprites.emplace_back(shaderProgram, quadVAO, jare);
-    sprites.back().SetPosition(50.0f, 50.0f);      // canto inferior-esquerdo em (50,50)
-    sprites.back().SetScale(128.0f, 128.0f);       // 128×128 px
+    // Posição inicial do jogador: em baixo, próximo ao "chão" y = 50
+    sprites.back().SetPosition(50.0f, 50.0f);
+    sprites.back().SetScale(128.0f, 128.0f);
     sprites.back().SetRotation(0.0f);
 
     // (adicione mais sprites conforme desejar)
@@ -416,21 +406,25 @@ int main()
     // sprites.back().SetScale(64.0f, 64.0f);
     // sprites.back().SetRotation(0.0f);
 
-    // 6.7.1 Cria sprites de parallax (cada camada ocupa toda a tela)
+    // 6.7.1 Cria sprites de parallax (cada camada ocupa toda a tela; posição inicial em x=0)
     std::vector<Sprite> parallaxSprites;
     parallaxSprites.reserve(5);
     for (int i = 0; i < 5; ++i) {
         parallaxSprites.emplace_back(shaderProgram, quadVAO, parallaxTex[i]);
-        parallaxSprites.back().SetPosition(0.0f, 0.0f);
+        // Define escala para toda a tela, mas posição X será ajustada via offset
         parallaxSprites.back().SetScale((float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
+        // Verticalmente, centraliza no meio da tela (300)
+        parallaxSprites.back().SetPosition(SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f);
         parallaxSprites.back().SetRotation(0.0f);
     }
 
-    // 6.7.2 Define velocidades de parallax (quanto maior, mais rápido a camada se move)
-    float parallaxSpeeds[5] = { 20.0f, 40.0f, 60.0f, 80.0f, 100.0f };
+    float MULTIPLICADOR = 10.0f;
 
-    // 6.7.3 Posições X iniciais de cada camada (para fazer wrapping)
-    float parallaxX[5] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    // 6.7.2 Define velocidades de parallax (quanto maior, mais rápido a camada se move)
+    float parallaxSpeeds[5] = { 20.0f * MULTIPLICADOR, 40.0f * MULTIPLICADOR, 60.0f * MULTIPLICADOR, 80.0f * MULTIPLICADOR, 100.0f * MULTIPLICADOR };
+
+    // 6.7.3 Offset X inicial de cada camada (em px, partindo de 0 = sem deslocamento)
+    float parallaxOffsetX[5] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
     // 6.8 Define matriz de projeção ortográfica (coordenadas de tela)
     glm::mat4 projection = glm::ortho(
@@ -460,32 +454,35 @@ int main()
 
         // 6.10.3 Entrada de teclado PARA MOVIMENTO (horizontal e pulo) de forma independente
         int moveDir = 0; // -1 = andando para a esquerda, +1 = para a direita, 0 = parado
+
+        // *** Movimentar o JOGADOR que está em sprites[0] ***
         if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-            sprites[1].andaDireita(200.0f * deltaTime); // 200 px/s
+            sprites[0].andaDireita(200.0f * MULTIPLICADOR * deltaTime); // 200 px/s
             moveDir = +1;
         }
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-            sprites[1].andaEsquerda(-200.0f * deltaTime); // qtd negativo = moveDir -1
+            sprites[0].andaEsquerda(-200.0f * MULTIPLICADOR * deltaTime); // qtd negativo = moveDir -1
             moveDir = -1;
         }
         if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            sprites[1].andaCima(0.0f);
+            sprites[0].andaCima(0.0f);
         }
         if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            sprites[1].andaBaixo(200.0f * deltaTime);
+            sprites[0].andaBaixo(200.0f * deltaTime);
         }
 
-        // 6.10.4 Atualiza física do pulo do jogador
-        sprites[1].UpdatePhysics(deltaTime);
+        // 6.10.4 Atualiza física do pulo do jogador (sprites[0])
+        sprites[0].UpdatePhysics(deltaTime);
 
-        // 6.10.5 Atualiza posições de parallax com base na direção do jogador
+        // 6.10.5 Atualiza offsets de parallax com base na direção do jogador
         for (int i = 0; i < 5; ++i) {
-            parallaxX[i] -= moveDir * parallaxSpeeds[i] * deltaTime;
-            // Wrapping horizontal para manter contínuo
-            if (parallaxX[i] <= -SCREEN_WIDTH)
-                parallaxX[i] += SCREEN_WIDTH;
-            if (parallaxX[i] >= SCREEN_WIDTH)
-                parallaxX[i] -= SCREEN_WIDTH;
+            parallaxOffsetX[i] -= moveDir * parallaxSpeeds[i] * deltaTime;
+
+            // Faz wrapping do offset quando sai muito para a esquerda ou direita
+            if (parallaxOffsetX[i] <= -SCREEN_WIDTH)
+                parallaxOffsetX[i] += SCREEN_WIDTH;
+            if (parallaxOffsetX[i] >= SCREEN_WIDTH)
+                parallaxOffsetX[i] -= SCREEN_WIDTH;
         }
 
         // 6.10.6 Desenha cena
@@ -494,21 +491,30 @@ int main()
 
         // 6.10.6.1 Desenha cada camada de parallax (da mais distante à mais próxima)
         for (int i = 0; i < 5; ++i) {
-            float x = parallaxX[i];
-            if (x <= 0.0f) {
-                parallaxSprites[i].SetPosition(x, 0.0f);
+            // Calcula o centro X atual da textura: offset + metade da largura da tela
+            float centerX = parallaxOffsetX[i] + (SCREEN_WIDTH / 2.0f);
+            float centerY = SCREEN_HEIGHT / 2.0f; // mantém vertical centralizada
+
+            // Se o offset estiver ≤ 0: desenha em centerX e centerX + SCREEN_WIDTH
+            // Senão, desenha em centerX e centerX - SCREEN_WIDTH
+            if (parallaxOffsetX[i] <= 0.0f) {
+                // 1ª cópia
+                parallaxSprites[i].SetPosition(centerX, centerY);
                 parallaxSprites[i].Draw(projection);
-                parallaxSprites[i].SetPosition(x + SCREEN_WIDTH, 0.0f);
+                // 2ª cópia (à direita)
+                parallaxSprites[i].SetPosition(centerX + SCREEN_WIDTH, centerY);
                 parallaxSprites[i].Draw(projection);
             } else {
-                parallaxSprites[i].SetPosition(x, 0.0f);
+                // 1ª cópia
+                parallaxSprites[i].SetPosition(centerX, centerY);
                 parallaxSprites[i].Draw(projection);
-                parallaxSprites[i].SetPosition(x - SCREEN_WIDTH, 0.0f);
+                // 2ª cópia (à esquerda)
+                parallaxSprites[i].SetPosition(centerX - SCREEN_WIDTH, centerY);
                 parallaxSprites[i].Draw(projection);
             }
         }
 
-        // 6.10.6.2 Desenha os sprites originais por cima dos backgrounds
+        // 6.10.6.2 Desenha os sprites originais (jogador, rochas, etc.) por cima dos backgrounds
         for (auto& sprite : sprites) {
             sprite.Draw(projection);
         }
