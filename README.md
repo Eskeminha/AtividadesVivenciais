@@ -10,7 +10,7 @@ GitHub: [@fellowsheep](https://github.com/fellowsheep/)
 ## 👨‍💻 Alunos
 
 - Anderson Koefender  
-- Lucas Luan Rost  
+- Lucas Luan Rost [@LucasRost](https://github.com/LucasRost)
 - Raphael Ferracioli  
 
 ## 🎯 Objetivo do Repositório
