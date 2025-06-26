@@ -46,6 +46,8 @@ include_directories(${glm_SOURCE_DIR})
 set(EXERCISES
     M2/atividadevivencial_01
     M4/atividadevivencial_02
+    M6/atividadevivencial_03
+    GB/Joguinho
     HelloTriangle
     HelloTransform
     HelloTexture
