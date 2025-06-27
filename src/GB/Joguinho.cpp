@@ -150,7 +150,7 @@ struct Moeda {
 
 // Array estático com as posições das moedas
 Moeda moedasMapa[] = {
-    {4, 0, true},
+    {4, 0, false},
     {6, 2, true},
     {7, 13, true}
 };
@@ -264,12 +264,12 @@ int main()
 	int migoreWidth, migoreHeight;
 	migore.nDirecoes = 8;
 	migore.nFrames = 4;
-	migore.texID = loadTexture("../assets/sprites/migore.png", migoreWidth, migoreHeight);
-	migore.dimensions = vec3(100, 100, 1.0); // Ajuste conforme o sprite
+	migore.texID = loadTexture("../assets/tilesets/migore.png", migoreWidth, migoreHeight);
+	migore.dimensions = vec3(100, 100, 1.0);
 	migore.ds = 1.0f / migore.nFrames;
 	migore.dt = 1.0f / migore.nDirecoes;
 	migore.VAO = setupSprite(migore.nDirecoes, migore.nFrames, migore.ds, migore.dt);
-	migore.direcao = 0;
+	migore.direcao = 3; // Inicializa olhando para SO (Sudoeste)
 	migore.frame = 0;
 
 	// Carrega o sprite das moedas
@@ -411,88 +411,47 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
 	if (key == GLFW_KEY_W && action == GLFW_PRESS) // NORTE
 	{
-		if (pos.x > 0)
-		{
-			pos.x--;
-		}
-
-		if (pos.y > 0)
-		{
-			pos.y--;
-		}
-
-
+		if (pos.x > 0) pos.x--;
+		if (pos.y > 0) pos.y--;
+		migore.direcao = 0; // N
+	}
+	if (key == GLFW_KEY_Q && action == GLFW_PRESS) // NOROESTE
+	{
+		if (pos.x > 0) pos.x--;
+		migore.direcao = 1; // NO
 	}
 	if (key == GLFW_KEY_A && action == GLFW_PRESS) // OESTE
 	{
-		if (pos.x > 0)
-		{
-			pos.x--;
-		}
-		if (pos.y <= TILEMAP_HEIGHT - 2)
-		{
-			pos.y++;
-		}
-
-
+		if (pos.x > 0) pos.x--;
+		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
+		migore.direcao = 2; // O
+	}
+	if (key == GLFW_KEY_Z && action == GLFW_PRESS) // SUDOESTE
+	{
+		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
+		migore.direcao = 3; // SO
 	}
 	if (key == GLFW_KEY_S && action == GLFW_PRESS) // SUL
 	{
-		if (pos.x <= TILEMAP_WIDTH -2)
-		{
-			pos.x++;
-		}
-
-		if (pos.y <= TILEMAP_HEIGHT - 2)
-		{
-			pos.y++;
-		}
-
+		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
+		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
+		migore.direcao = 4; // S
+	}
+	if (key == GLFW_KEY_C && action == GLFW_PRESS) // SUDESTE
+	{
+		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
+		migore.direcao = 5; // SE
 	}
 	if (key == GLFW_KEY_D && action == GLFW_PRESS) // LESTE
 	{
-		if (pos.x <= TILEMAP_WIDTH -2)
-		{
-			pos.x++;
-		}
-
-		if (pos.y > 0)
-		{
-			pos.y--;
-		}
-
+		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
+		if (pos.y > 0) pos.y--;
+		migore.direcao = 6; // L
 	}
-	if (key == GLFW_KEY_Q && action == GLFW_PRESS) //NOROESTE
+	if (key == GLFW_KEY_E && action == GLFW_PRESS) // NORDESTE
 	{
-		if (pos.x > 0)
-		{
-			pos.x--;
-		}
-
-	}
-	if (key == GLFW_KEY_E && action == GLFW_PRESS) //NORDESTE
-	{
-		if (pos.y > 0)
-		{
-			pos.y--;
-		}
-
-	}
-	if (key == GLFW_KEY_Z && action == GLFW_PRESS) //SUDOESTE
-	{
-		if (pos.y <= TILEMAP_HEIGHT - 2)
-		{
-			pos.y++;
-		}
-
-	}
-	if (key == GLFW_KEY_X && action == GLFW_PRESS) //SUDESTE
-	{
-		if (pos.x <= TILEMAP_WIDTH -2)
-		{
-			pos.x++;
-		}
-
+		if (pos.y > 0) pos.y--;
+		migore.direcao = 7; // NE
 	}
 
 	// Nova lógica de colisão: só permite andar se barreiras[y][x] == 0
@@ -770,7 +729,7 @@ void desenharMapa(GLuint shaderID)
 	float tile_h = tile_central.dimensions.y;
 
 	// Offset para centralizar o personagem
-	float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f;
+	float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f - tile_w / 2.0f; // desloca meio tile para a esquerda
 	float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
 
 	for(int i=0; i<TILEMAP_HEIGHT; i++)
