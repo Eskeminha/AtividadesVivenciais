@@ -102,6 +102,7 @@ void desenharPersonagem(GLuint shaderID);
 void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]);
 void imprimeMapa(int map[][TILEMAP_WIDTH]);
 void desenharMoedas(GLuint shaderID);
+void verificaEventoMapa(int posx, int posy);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -137,10 +138,13 @@ const GLchar *fragmentShaderSource = R"(
 
 
 
-int map[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Mapa principal
-int barreiras[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Mapa das barreiras
+int map[TILEMAP_WIDTH][TILEMAP_HEIGHT]; // Mapa principal
+int barreiras[TILEMAP_WIDTH][TILEMAP_HEIGHT]; // Mapa das barreiras
 Personagem migore; // Personagem principal
 Sprite moedas;  // Sprite das moedas
+
+// INICIALIZA OS CONTROLES DE EVENTOS
+static bool evento_38_ativado = false;
 
 // Struct para representar uma moeda no mapa
 struct Moeda {
@@ -348,6 +352,7 @@ int main()
 		glPointSize(20);
 
 		// Desenhar o mapa
+		verificaEventoMapa(pos.x, pos.y);
 		desenharMapa(shaderID);
 		desenharPersonagem(shaderID);
 		desenharMoedas(shaderID);
@@ -454,21 +459,45 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 		migore.direcao = 7; // NE
 	}
 
-	// Nova lógica de colisão: só permite andar se barreiras[y][x] == 0
-	if (barreiras[(int)pos.y][(int)pos.x] != 0)
+	// Nova lógica de colisão: só permite andar se barreiras[x][y] == 0
+	if (barreiras[(int)pos.x][(int)pos.y] != 0)
 	{
 		pos = aux; //recebe a pos não mudada :P
 	}
 
 	cout << "(" << pos.x <<"," << pos.y << ")" << endl;
 
+	
 }
 
-// Função utilitária para imprimir o mapa no console
+// Função para verificar eventos do tile atual do mapa (lava, moedas, etc)
+void verificaEventoMapa(int posx, int posy) {
+    // Log de chamada da função
+    // Evento: Lava (sprite 3)
+    if (map[posx][posy] == 3) {
+        std::cout << "Você morreu! Caiu na lava!" << std::endl;
+        pos.x = 0;
+        pos.y = 0;
+        // Outros efeitos podem ser adicionados aqui
+    }
+
+    // Primeiro botão
+    if (posx == 3 && posy == 7 && !evento_38_ativado) {
+		// atualiza para CHÃO (0) e libera colisão
+		map[2][8]       = 0;  
+		barreiras[2][8] = 0;  
+		evento_38_ativado = true;
+		cout << "[LOG] Evento especial em (3,7): tile (2,8) agora CHAO (0) e barreira liberada!" << std::endl;
+	}
+
+    
+}
+
+// Função utilitária para imprimir o mapa no console PARA DEBUG
 void imprimeMapa(int map[][TILEMAP_WIDTH]) {
     for (int y = 0; y < TILEMAP_HEIGHT; y++) {
         for (int x = 0; x < TILEMAP_WIDTH; x++) {
-            std::cout << map[y][x];
+            std::cout << map[x][y];
             if (x < TILEMAP_WIDTH - 1)
                 std::cout << ",";
         }
@@ -704,14 +733,14 @@ void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]) {
         while (x < TILEMAP_WIDTH && (end = linha.find(',', start)) != std::string::npos) {
             std::string valor = linha.substr(start, end - start);
             if (!valor.empty() && valor.find_first_not_of(" \t\n\r") != std::string::npos)
-                map[y][x++] = std::stoi(valor);
+                map[x++][y] = std::stoi(valor);
             start = end + 1;
         }
         // Último valor da linha (após a última vírgula)
         if (x < TILEMAP_WIDTH && start < linha.size()) {
             std::string valor = linha.substr(start);
             if (!valor.empty() && valor.find_first_not_of(" \t\n\r") != std::string::npos)
-                map[y][x++] = std::stoi(valor);
+                map[x++][y] = std::stoi(valor);
         }
         y++;
     }
@@ -732,17 +761,17 @@ void desenharMapa(GLuint shaderID)
 	float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f - tile_w / 2.0f; // desloca meio tile para a esquerda
 	float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
 
-	for(int i=0; i<TILEMAP_HEIGHT; i++)
+	for(int y=0; y<TILEMAP_HEIGHT; y++)
 	{
-		for (int j=0; j < TILEMAP_WIDTH; j++)
+		for (int x=0; x < TILEMAP_WIDTH; x++)
 		{
 			mat4 model = mat4(1);
-			Tile curr_tile = tileset[map[i][j]];
+			Tile curr_tile = tileset[map[x][y]];
 
-			float x = x0 + (j-i) * curr_tile.dimensions.x/2.0;
-			float y = y0 + (j+i) * curr_tile.dimensions.y/2.0;
+			float draw_x = x0 + (x-y) * curr_tile.dimensions.x/2.0;
+			float draw_y = y0 + (x+y) * curr_tile.dimensions.y/2.0;
 
-			model = translate(model, vec3(x,y,0.0));
+			model = translate(model, vec3(draw_x,draw_y,0.0));
 			model = scale(model,curr_tile.dimensions);
 			glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
 
