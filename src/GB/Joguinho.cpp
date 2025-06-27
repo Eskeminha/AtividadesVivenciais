@@ -112,6 +112,7 @@ void verificaEventoMapa(int posx, int posy);
 void liberarTileComAnimacao(int x, int y, bool &evento_ativado);
 void desenharGreatJareSpirit(GLuint shaderID);
 void coletarMoeda(int indice);
+void drawText_GL33(float x, float y, const char* text, float r, float g, float b, float scale);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 960, HEIGHT = 720;
@@ -152,6 +153,7 @@ int barreiras[TILEMAP_WIDTH][TILEMAP_HEIGHT]; // Mapa das barreiras
 Personagem migore; // Personagem principal
 Sprite moedas;  // Sprite das moedas
 Sprite greatJareSpirit; // Sprite do great_jare_spirit
+Sprite topBar; // Sprite da barra superior
 bool greatJareSpirit_ativo = false; // Controla se o sprite será exibido
 double pontuacao = 0;
 int vidas = 5;
@@ -210,6 +212,49 @@ const int NUM_MOEDAS = sizeof(moedasMapa) / sizeof(Moeda);
 
 vector <Tile> tileset;
 vec2 pos; //armazena o indice i e j de onde o "personagem" está na cena
+
+// --- VARIÁVEIS DE ESTADO DO JOGO ---
+bool jogo_pausado = false;
+bool jogador_ganhou = false;
+bool jogador_perdeu = false;
+double tempo_final = 0.0; // Tempo congelado ao finalizar o jogo
+
+void resetarJogo() {
+    // Resetar mapas e barreiras
+    leMapa("../assets/maps/mapa.txt", map);
+    leMapa("../assets/maps/barreiras.txt", barreiras);
+    // Resetar personagem
+    pos.x = 0; pos.y = 0;
+    migore.direcao = 3;
+    migore.frame = 0;
+    migore.andando = false;
+    migore.grupoAnimacao = 0;
+    // Resetar moedas
+    moedasMapa[0].x = 4; moedasMapa[0].y = 0; moedasMapa[0].ativa = false;
+    moedasMapa[1].x = 6; moedasMapa[1].y = 2; moedasMapa[1].ativa = true;
+    moedasMapa[2].x = 7; moedasMapa[2].y = 13; moedasMapa[2].ativa = true;
+    moedasMapa[3].x = 13; moedasMapa[3].y = 11; moedasMapa[3].ativa = false;
+    // Resetar eventos
+    evento_38_ativado = false;
+    evento_210_ativado = false;
+    evento_45_ativado = false;
+    evento_512_ativado = false;
+    evento_82_ativado = false;
+    evento_83_ativado = false;
+    evento_71_ativado = false;
+    evento_41_ativado = false;
+    evento_118_ativado = false;
+    evento_1312_ativado = false;
+    evento_jare_capturado = false;
+    greatJareSpirit_ativo = false;
+    pontuacao = 0;
+    vidas = 5;
+    animacoesTile.clear();
+    jogo_pausado = false;
+    jogador_ganhou = false;
+    jogador_perdeu = false;
+    tempo_final = 0.0; // Reseta o tempo congelado
+};
 
 // Função MAIN
 int main()
@@ -347,6 +392,18 @@ int main()
 	greatJareSpirit.iAnimation = 0;
 	greatJareSpirit.iFrame = 0;
 
+	// Carrega o sprite da top_bar
+	int topBarWidth, topBarHeight;
+	topBar.nAnimations = 1;
+	topBar.nFrames = 1;
+	topBar.texID = loadTexture("../assets/sprites/top_bar.png", topBarWidth, topBarHeight);
+	topBar.dimensions = vec3(topBarWidth, topBarHeight, 1.0);
+	topBar.ds = 1.0f;
+	topBar.dt = 1.0f;
+	topBar.VAO = setupSprite(topBar.nAnimations, topBar.nFrames, topBar.ds, topBar.dt);
+	topBar.iAnimation = 0;
+	topBar.iFrame = 0;
+
 	glUseProgram(shaderID); // Reseta o estado do shader para evitar problemas futuros
 
 	double prev_s = glfwGetTime();	// Define o "tempo anterior" inicial.
@@ -381,40 +438,56 @@ int main()
     static double prev_anim_s = glfwGetTime(); // Corrigido: fora do if
 	while (!glfwWindowShouldClose(window))
 	{
-		// ADICIONAR LOGICA DO GAME OVER
-		// ADICIONAR A LOGICA DO RESET
-
-
-		// Este trecho de código é totalmente opcional: calcula e mostra a contagem do FPS na barra de título
-		{
-			double curr_s = glfwGetTime();		// Obtém o tempo atual.
-			double elapsed_s = curr_s - prev_s; // Calcula o tempo decorrido desde o último frame.
-			prev_s = curr_s;					// Atualiza o "tempo anterior" para o próximo frame.
-
-			// Exibe o FPS, mas não a cada frame, para evitar oscilações excessivas.
-			title_countdown_s -= elapsed_s;
-			if (title_countdown_s <= 0.0 && elapsed_s > 0.0)
-			{
-				double fps = 1.0 / elapsed_s; // Calcula o FPS com base no tempo decorrido.
-
-				// Cria uma string e define o FPS como título da janela.
-				char tmp[256];
-				sprintf(tmp, "Labirintaré - Wooo TSSSSS, Cadê o Wingles?\tFPS %.2lf", fps);
-				glfwSetWindowTitle(window, tmp);
-
-				title_countdown_s = 0.1; // Reinicia o temporizador para atualizar o título periodicamente.
-			}
-		}
-
-		// Checa se houveram eventos de input (key pressed, mouse moved etc.) e chama as funções de callback correspondentes
+		// Checa eventos de input
 		glfwPollEvents();
+
+		// --- PAUSA: impede atualização do jogo se pausado ---
+        if (jogo_pausado) {
+            // Limpa tela
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // --- DESENHA TOP BAR COMO FUNDO DO HUD (igual ao modo normal) ---
+            {
+                float x = ((topBar.dimensions.x) / 3 )* 2;
+                float y = 30.0f; // Topo da janela
+                mat4 model = mat4(1);
+                model = translate(model, vec3(x, y, 0.0f));
+                model = scale(model, topBar.dimensions);
+                glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
+                vec2 offsetTex;
+                offsetTex.s = topBar.iFrame * topBar.ds;
+                offsetTex.t = topBar.iAnimation * topBar.dt;
+                glUniform2f(glGetUniformLocation(shaderID, "offsetTex"), offsetTex.s, offsetTex.t);
+                glBindVertexArray(topBar.VAO);
+                glBindTexture(GL_TEXTURE_2D, topBar.texID);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            }
+            // --- HUD alinhado bonito ---
+            char info[128];
+            float y_hud = 25.0f;
+            sprintf(info, "Pontos: %.0f", pontuacao);
+            drawText_GL33(WIDTH/2 - 260, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+            sprintf(info, "Vidas: %d", vidas);
+            drawText_GL33(WIDTH/2 - 40, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+            double tempo_jogo = tempo_final; // sempre tempo_final
+            sprintf(info, "Tempo: %.1fs", tempo_jogo);
+            drawText_GL33(WIDTH/2 + 140, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+            // --- Mensagem de fim de jogo ---
+            const char* msg = jogador_ganhou ? "VOCE GANHOU!" : "GAME OVER";
+            // Centralização simples, igual ao HUD
+            drawText_GL33(WIDTH/2-120, HEIGHT/2-40, msg, 1, 1, 0, 3.0f);
+            drawText_GL33(WIDTH/2-190, HEIGHT/2+20, "Pressione ENTER para reiniciar", 1, 1, 1, 2.0f);
+            glUseProgram(shaderID);
+            glBindVertexArray(0);
+            glfwSwapBuffers(window);
+            continue;
+        }
 
 		// Limpa o buffer de cor
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // cor de fundo
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glLineWidth(10);
-		glPointSize(20);
+        
 
 		// Desenhar o mapa
 		verificaEventoMapa(pos.x, pos.y);
@@ -467,7 +540,65 @@ int main()
             );
         }
 
-		// Troca os buffers da tela
+		// --- CHECA CONDIÇÃO DE VITÓRIA/DERROTA ---
+        // Vitória: chegou ao final (exemplo: tile 14,5)
+        if (!jogo_pausado && pos.x == 14 && pos.y == 5) {
+            jogo_pausado = true;
+            jogador_ganhou = true;
+            jogador_perdeu = false;
+            tempo_final = glfwGetTime(); // Congela o tempo
+        }
+        // Derrota: ficou sem vidas
+        if (!jogo_pausado && vidas <= 0) {
+            jogo_pausado = true;
+            jogador_perdeu = true;
+            jogador_ganhou = false;
+            tempo_final = glfwGetTime(); // Congela o tempo
+        }
+
+		// --- DESENHA TOP BAR COMO FUNDO DO HUD ---
+        {
+            float x = ((topBar.dimensions.x) / 3 )* 2;
+            float y = 30.0f; // Agora, topo da janela
+            mat4 model = mat4(1);
+            model = translate(model, vec3(x, y, 0.0f));
+            model = scale(model, topBar.dimensions);
+            glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
+            vec2 offsetTex;
+            offsetTex.s = topBar.iFrame * topBar.ds;
+            offsetTex.t = topBar.iAnimation * topBar.dt;
+            glUniform2f(glGetUniformLocation(shaderID, "offsetTex"), offsetTex.s, offsetTex.t);
+            glBindVertexArray(topBar.VAO);
+            glBindTexture(GL_TEXTURE_2D, topBar.texID);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+		
+        // --- DESENHO DE TEXTOS (HUD) ---
+        char info[128];
+        float y_hud = 25.0f;
+        // Pontos à esquerda
+        sprintf(info, "Pontos: %.0f", pontuacao);
+        drawText_GL33(WIDTH/2 - 260, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+        // Vidas ao centro
+        sprintf(info, "Vidas: %d", vidas);
+        drawText_GL33(WIDTH/2 - 40, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+        // Tempo à direita
+        double tempo_jogo = jogo_pausado ? tempo_final : glfwGetTime();
+        sprintf(info, "Tempo: %.1fs", tempo_jogo);
+        drawText_GL33(WIDTH/2 + 140, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
+       
+
+        // --- MENSAGEM DE FIM DE JOGO ---
+        if (jogo_pausado) {
+            const char* msg = jogador_ganhou ? "VOCE GANHOU!" : "GAME OVER";
+            // Centralização simples, igual ao HUD
+            drawText_GL33(WIDTH/2-180, HEIGHT/2-40, msg, 1, 1, 0, 3.0f);
+            drawText_GL33(WIDTH/2-260, HEIGHT/2+20, "Pressione ENTER para reiniciar", 1, 1, 1, 2.0f);
+        }
+        // Garante que o shader do jogo está ativo após desenhar texto
+        glUseProgram(shaderID);
+        glBindVertexArray(0);
+        // Troca os buffers da tela
 		glfwSwapBuffers(window);
 	}
 		
@@ -481,8 +612,17 @@ int main()
 // ou solta via GLFW
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-		glfwSetWindowShouldClose(window, GL_TRUE);
+    // Permite fechar com ESC sempre
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GL_TRUE);
+
+    // --- Se o jogo está pausado, só aceita ENTER para resetar ---
+    if (jogo_pausado) {
+        if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+            resetarJogo();
+        }
+        return;
+    }
 
 	vec2 aux = pos;
 
@@ -590,7 +730,7 @@ void verificaEventoMapa(int posx, int posy) {
 		animarTrocaTile(12, 11, 5);
 		greatJareSpirit_ativo = false;
 		evento_jare_capturado = true;
-		pontuacao *= 0.15f;
+		pontuacao *= 1.25f;
 		
 	}
 
@@ -1044,4 +1184,76 @@ void coletarMoeda(int indice) {
     pontuacao += 340;
     std::cout << "Você coletou uma moeda! Pontuação: " << pontuacao << std::endl;
     animarTrocaTile(moedasMapa[indice].x, moedasMapa[indice].y, 5);
+}
+
+#include "../../include/glad/stb_easy_font.h"
+
+// Função utilitária para desenhar texto usando stb_easy_font e OpenGL moderno
+void drawText_GL33(float x, float y, const char* text, float r, float g, float b, float scale) {
+    static GLuint vbo = 0, vao = 0;
+    static GLuint shader = 0;
+    static GLint uniColor = -1, uniProjection = -1;
+
+    char buffer[99999];
+    int num_quads = stb_easy_font_print(0, 0, (char*)text, NULL, buffer, sizeof(buffer));
+
+    // Aplica escala nos vértices
+    float* verts = (float*)buffer;
+    for (int i = 0; i < num_quads * 4; ++i) {
+        verts[i * 4 + 0] = verts[i * 4 + 0] * scale + x;
+        verts[i * 4 + 1] = verts[i * 4 + 1] * scale + y;
+    }
+
+    if (shader == 0) {
+        // Vertex shader simples para 2D
+        const char* vs =
+            "#version 330 core\n"
+            "layout(location=0) in vec2 pos;\n"
+            "uniform mat4 projection;\n"
+            "void main(){ gl_Position = projection * vec4(pos,0,1); }\n";
+        // Fragment shader simples para cor uniforme
+        const char* fs =
+            "#version 330 core\n"
+            "uniform vec3 color;\n"
+            "out vec4 FragColor;\n"
+            "void main(){ FragColor = vec4(color,1); }\n";
+        GLuint vsId = glCreateShader(GL_VERTEX_SHADER);
+        GLuint fsId = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(vsId, 1, &vs, NULL); glCompileShader(vsId);
+        glShaderSource(fsId, 1, &fs, NULL); glCompileShader(fsId);
+        shader = glCreateProgram();
+        glAttachShader(shader, vsId); glAttachShader(shader, fsId);
+        glLinkProgram(shader);
+        glDeleteShader(vsId); glDeleteShader(fsId);
+        uniColor = glGetUniformLocation(shader, "color");
+        uniProjection = glGetUniformLocation(shader, "projection");
+    }
+
+    if (vao == 0) {
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+    }
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, num_quads * 4 * 16, buffer, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
+
+    glUseProgram(shader);
+
+    // Projeção ortográfica para 2D
+    float ortho[16] = {
+        2.0f/WIDTH, 0, 0, 0,
+        0, -2.0f/HEIGHT, 0, 0,
+        0, 0, -1, 0,
+        -1, 1, 0, 1
+    };
+    glUniformMatrix4fv(uniProjection, 1, GL_FALSE, ortho);
+    glUniform3f(uniColor, r, g, b);
+
+    glDrawArrays(GL_QUADS, 0, num_quads * 4);
+
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
