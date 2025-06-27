@@ -218,6 +218,7 @@ bool jogo_pausado = false;
 bool jogador_ganhou = false;
 bool jogador_perdeu = false;
 double tempo_final = 0.0; // Tempo congelado ao finalizar o jogo
+double tempo_inicio = 0.0; // Novo: tempo de início do jogo
 
 void resetarJogo() {
     // Resetar mapas e barreiras
@@ -254,6 +255,7 @@ void resetarJogo() {
     jogador_ganhou = false;
     jogador_perdeu = false;
     tempo_final = 0.0; // Reseta o tempo congelado
+    tempo_inicio = glfwGetTime(); // Novo: reseta o tempo de início
 };
 
 // Função MAIN
@@ -469,7 +471,7 @@ int main()
             drawText_GL33(WIDTH/2 - 260, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
             sprintf(info, "Vidas: %d", vidas);
             drawText_GL33(WIDTH/2 - 40, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
-            double tempo_jogo = tempo_final; // sempre tempo_final
+            double tempo_jogo = tempo_final - tempo_inicio; // Corrigido
             sprintf(info, "Tempo: %.1fs", tempo_jogo);
             drawText_GL33(WIDTH/2 + 140, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
             // --- Mensagem de fim de jogo ---
@@ -583,7 +585,7 @@ int main()
         sprintf(info, "Vidas: %d", vidas);
         drawText_GL33(WIDTH/2 - 40, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
         // Tempo à direita
-        double tempo_jogo = jogo_pausado ? tempo_final : glfwGetTime();
+        double tempo_jogo = jogo_pausado ? (tempo_final - tempo_inicio) : (glfwGetTime() - tempo_inicio); // Corrigido
         sprintf(info, "Tempo: %.1fs", tempo_jogo);
         drawText_GL33(WIDTH/2 + 140, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
        
