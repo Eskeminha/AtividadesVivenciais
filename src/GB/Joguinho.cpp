@@ -219,6 +219,9 @@ bool jogador_ganhou = false;
 bool jogador_perdeu = false;
 double tempo_final = 0.0; // Tempo congelado ao finalizar o jogo
 double tempo_inicio = 0.0; // Novo: tempo de início do jogo
+// Mensagem temporária de morte na lava
+std::string mensagem_morte_lava = "";
+double tempo_mensagem_lava = 0.0;
 
 void resetarJogo() {
     // Resetar mapas e barreiras
@@ -478,7 +481,7 @@ int main()
             const char* msg = jogador_ganhou ? "VOCE GANHOU!" : "GAME OVER";
             // Centralização simples, igual ao HUD
             drawText_GL33(WIDTH/2-120, HEIGHT/2-40, msg, 1, 1, 0, 3.0f);
-            drawText_GL33(WIDTH/2-190, HEIGHT/2+20, "Pressione ENTER para reiniciar", 1, 1, 1, 2.0f);
+            drawText_GL33(WIDTH/2-190, HEIGHT/2+20, "Pressione ENTER para reiniciar.", 1, 1, 1, 2.0f);
             glUseProgram(shaderID);
             glBindVertexArray(0);
             glfwSwapBuffers(window);
@@ -588,15 +591,17 @@ int main()
         double tempo_jogo = jogo_pausado ? (tempo_final - tempo_inicio) : (glfwGetTime() - tempo_inicio); // Corrigido
         sprintf(info, "Tempo: %.1fs", tempo_jogo);
         drawText_GL33(WIDTH/2 + 140, y_hud, info, 0.878f, 0.235f, 0.157f, 2.0f);
-       
-
-        // --- MENSAGEM DE FIM DE JOGO ---
-        if (jogo_pausado) {
-            const char* msg = jogador_ganhou ? "VOCE GANHOU!" : "GAME OVER";
-            // Centralização simples, igual ao HUD
-            drawText_GL33(WIDTH/2-180, HEIGHT/2-40, msg, 1, 1, 0, 3.0f);
-            drawText_GL33(WIDTH/2-260, HEIGHT/2+20, "Pressione ENTER para reiniciar", 1, 1, 1, 2.0f);
+        
+        // --- MENSAGEM TEMPORÁRIA DE MORTE NA LAVA ---
+        if (!mensagem_morte_lava.empty() && tempo_mensagem_lava > 0.0) {
+            drawText_GL33(WIDTH/2-200, HEIGHT/2-100, mensagem_morte_lava.c_str(), 1, 0.2f, 0.2f, 2.5f);
+            tempo_mensagem_lava -= deltaT;
+            if (tempo_mensagem_lava <= 0.0) {
+                mensagem_morte_lava = "";
+                tempo_mensagem_lava = 0.0;
+            }
         }
+
         // Garante que o shader do jogo está ativo após desenhar texto
         glUseProgram(shaderID);
         glBindVertexArray(0);
@@ -706,10 +711,12 @@ void verificaEventoMapa(int posx, int posy) {
 
 	// --------------------- LÓGICA DA LAVA
     if (map[posx][posy] == 3) {
-        std::cout << "Você morreu! Caiu na lava!" << std::endl;
+        std::cout << "Voce morreu! Caiu na lava!" << std::endl;
         pos.x = 0;
         pos.y = 0;
         vidas--;
+        mensagem_morte_lava = "Voce morreu! Caiu na lava!";
+        tempo_mensagem_lava = 3.5; // Exibe por 3.5 segundos
     }
 
 	// --------------------- LÓGICA DAS MOEDAS
@@ -728,7 +735,7 @@ void verificaEventoMapa(int posx, int posy) {
 
 	// --------------------- LÓGICA DO GREAT JARE SPIRIT
 	if (posx == 12 && posy == 11 && greatJareSpirit_ativo && !evento_jare_capturado) {
-		std::cout << "Você encontrou o Great Jare Spirit!" << std::endl;
+		std::cout << "Voce encontrou o Great Jare Spirit!" << std::endl;
 		animarTrocaTile(12, 11, 5);
 		greatJareSpirit_ativo = false;
 		evento_jare_capturado = true;
@@ -1184,7 +1191,7 @@ void liberarTileComAnimacao(int x, int y, bool &evento_ativado) {
 void coletarMoeda(int indice) {
     moedasMapa[indice].ativa = false;
     pontuacao += 340;
-    std::cout << "Você coletou uma moeda! Pontuação: " << pontuacao << std::endl;
+    std::cout << "Voce coletou uma moeda! Pontuação: " << pontuacao << std::endl;
     animarTrocaTile(moedasMapa[indice].x, moedasMapa[indice].y, 5);
 }
 
