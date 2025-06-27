@@ -27,6 +27,8 @@
 #include <string>
 #include <assert.h>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -47,6 +49,8 @@ using namespace std;
 
 using namespace glm;
 
+ #define TILEMAP_WIDTH 15
+ #define TILEMAP_HEIGHT 15
 
 struct Sprite
 {
@@ -82,6 +86,8 @@ int setupTile(int nTiles, float &ds, float &dt);
 int loadTexture(string filePath, int &width, int &height);
 void desenharMapa(GLuint shaderID);
 void desenharPersonagem(GLuint shaderID);
+void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]);
+void imprimeMapa(int map[][TILEMAP_WIDTH]);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -116,13 +122,10 @@ const GLchar *fragmentShaderSource = R"(
  )";
 
 
- #define TILEMAP_WIDTH 3
- #define TILEMAP_HEIGHT 3
-int map[3][3] = {
-1, 1, 4,
-4, 1, 4,
-4, 4, 1
-};
+
+int map[TILEMAP_HEIGHT][TILEMAP_WIDTH];
+int barreiras[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Novo mapa para barreiras
+
 
 vector <Tile> tileset;
 
@@ -132,6 +135,16 @@ int main()
 {
 	// Inicialização da GLFW
 	glfwInit();
+
+	// Preenche o mapa a partir do arquivo
+	leMapa("../assets/maps/mapa.txt", map);
+	leMapa("../assets/maps/barreiras.txt", barreiras); // Lê o novo mapa de barreiras
+
+	// Debug: imprime os mapas lidos
+	std::cout << "Mapa principal:" << std::endl;
+	imprimeMapa(map);
+	std::cout << "Mapa de barreiras:" << std::endl;
+	imprimeMapa(barreiras);
 
 	// Muita atenção aqui: alguns ambientes não aceitam essas configurações
 	// Você deve adaptar para a versão do OpenGL suportada por sua placa
@@ -203,7 +216,7 @@ int main()
 	for (int i=0; i < 7; i++)
 	{
 		Tile tile;
-		tile.dimensions = vec3(114,57,1.0);
+		tile.dimensions = vec3(50,25,1.0); // Reduzido para caber o mapa inteiro na tela
 		tile.iTile = i;
 		tile.texID = texID;
 		tile.VAO = setupTile(7,tile.ds,tile.dt);
@@ -211,7 +224,7 @@ int main()
 		tileset.push_back(tile);
 	}
 
-	tileset[4].caminhavel = false; //agua
+	// tileset[4].caminhavel = false; // Removido, pois o sistema usa apenas o mapa de barreiras
 
 	// Inicializar a posição do "personagem"
 	pos.x = 0;
@@ -265,7 +278,7 @@ int main()
 
 				// Cria uma string e define o FPS como título da janela.
 				char tmp[256];
-				sprintf(tmp, "Ola Triangulo! -- Rossana\tFPS %.2lf", fps);
+				sprintf(tmp, "Labirintaré - Wooo TSSSSS, Cadê o Wingles?\tFPS %.2lf", fps);
 				glfwSetWindowTitle(window, tmp);
 
 				title_countdown_s = 0.1; // Reinicia o temporizador para atualizar o título periodicamente.
@@ -420,13 +433,26 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
 	}
 
-	if (!tileset[map[(int)pos.y][(int)pos.x]].caminhavel)
+	// Nova lógica de colisão: só permite andar se barreiras[y][x] == 0
+	if (barreiras[(int)pos.y][(int)pos.x] != 0)
 	{
 		pos = aux; //recebe a pos não mudada :P
 	}
 
 	cout << "(" << pos.x <<"," << pos.y << ")" << endl;
 
+}
+
+// Função utilitária para imprimir o mapa no console
+void imprimeMapa(int map[][TILEMAP_WIDTH]) {
+    for (int y = 0; y < TILEMAP_HEIGHT; y++) {
+        for (int x = 0; x < TILEMAP_WIDTH; x++) {
+            std::cout << map[y][x];
+            if (x < TILEMAP_WIDTH - 1)
+                std::cout << ",";
+        }
+        std::cout << std::endl;
+    }
 }
 
 // Esta função está bastante hardcoded - objetivo é compilar e "buildar" um programa de
@@ -638,6 +664,33 @@ int loadTexture(string filePath, int &width, int &height)
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return texID;
+}
+
+void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]) {
+    std::ifstream arquivo(path);
+    if (!arquivo.is_open()) {
+        std::cerr << "Erro ao abrir o arquivo: " << path << std::endl;
+        return;
+    }
+    std::string linha;
+    int y = 0;
+    while (std::getline(arquivo, linha) && y < TILEMAP_HEIGHT) {
+        int x = 0;
+        size_t start = 0, end;
+        while (x < TILEMAP_WIDTH && (end = linha.find(',', start)) != std::string::npos) {
+            std::string valor = linha.substr(start, end - start);
+            if (!valor.empty() && valor.find_first_not_of(" \t\n\r") != std::string::npos)
+                map[y][x++] = std::stoi(valor);
+            start = end + 1;
+        }
+        // Último valor da linha (após a última vírgula)
+        if (x < TILEMAP_WIDTH && start < linha.size()) {
+            std::string valor = linha.substr(start);
+            if (!valor.empty() && valor.find_first_not_of(" \t\n\r") != std::string::npos)
+                map[y][x++] = std::stoi(valor);
+        }
+        y++;
+    }
 }
 
 void desenharMapa(GLuint shaderID)
