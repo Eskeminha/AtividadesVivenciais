@@ -72,9 +72,22 @@ struct Tile
 	vec3 dimensions; //tamanho do losango 2:1
 	float ds, dt;
 	bool caminhavel;
-	//int iAnimation, iFrame;
+	//int iAnimation, int iFrame;
 	//int nAnimations, nFrames;
 };	
+
+// Estrutura para personagem animado
+struct Personagem {
+	GLuint VAO;
+	GLuint texID;
+	vec3 position;
+	vec3 dimensions;
+	float ds, dt;
+	int direcao; // 0=N, 1=NE, 2=L, 3=SE, 4=S, 5=SO, 6=O, 7=NO
+	int frame;
+	int nDirecoes;
+	int nFrames;
+};
 
 // Protótipo da função de callback de teclado
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
@@ -88,6 +101,7 @@ void desenharMapa(GLuint shaderID);
 void desenharPersonagem(GLuint shaderID);
 void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]);
 void imprimeMapa(int map[][TILEMAP_WIDTH]);
+void desenharMoedas(GLuint shaderID);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -123,13 +137,29 @@ const GLchar *fragmentShaderSource = R"(
 
 
 
-int map[TILEMAP_HEIGHT][TILEMAP_WIDTH];
-int barreiras[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Novo mapa para barreiras
+int map[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Mapa principal
+int barreiras[TILEMAP_HEIGHT][TILEMAP_WIDTH]; // Mapa das barreiras
+Personagem migore; // Personagem principal
+Sprite moedas;  // Sprite das moedas
+
+// Struct para representar uma moeda no mapa
+struct Moeda {
+    int x, y;
+    bool ativa;
+};
+
+// Array estático com as posições das moedas
+Moeda moedasMapa[] = {
+    {4, 0, true},
+    {6, 2, true},
+    {7, 13, true}
+};
+const int NUM_MOEDAS = sizeof(moedasMapa) / sizeof(Moeda);
 
 
 vector <Tile> tileset;
-
 vec2 pos; //armazena o indice i e j de onde o "personagem" está na cena
+
 // Função MAIN
 int main()
 {
@@ -216,7 +246,7 @@ int main()
 	for (int i=0; i < 7; i++)
 	{
 		Tile tile;
-		tile.dimensions = vec3(50,25,1.0); // Reduzido para caber o mapa inteiro na tela
+		tile.dimensions = vec3(100,50,1.0); // Tiles maiores para melhor visualização
 		tile.iTile = i;
 		tile.texID = texID;
 		tile.VAO = setupTile(7,tile.ds,tile.dt);
@@ -230,7 +260,29 @@ int main()
 	pos.x = 0;
 	pos.y = 0;
 
+	// Carrega o sprite animado do Migoré
+	int migoreWidth, migoreHeight;
+	migore.nDirecoes = 8;
+	migore.nFrames = 4;
+	migore.texID = loadTexture("../assets/sprites/migore.png", migoreWidth, migoreHeight);
+	migore.dimensions = vec3(100, 100, 1.0); // Ajuste conforme o sprite
+	migore.ds = 1.0f / migore.nFrames;
+	migore.dt = 1.0f / migore.nDirecoes;
+	migore.VAO = setupSprite(migore.nDirecoes, migore.nFrames, migore.ds, migore.dt);
+	migore.direcao = 0;
+	migore.frame = 0;
 
+	// Carrega o sprite das moedas
+	int moedasWidth, moedasHeight;
+	moedas.nAnimations = 1;
+	moedas.nFrames = 1; // Agora moedas são estáticas
+	moedas.texID = loadTexture("../assets/sprites/moedas.png", moedasWidth, moedasHeight);
+	moedas.dimensions = vec3(64, 64, 1.0); // Tamanho anterior
+	moedas.ds = 1.0f; // Apenas um frame
+	moedas.dt = 1.0f;
+	moedas.VAO = setupSprite(moedas.nAnimations, moedas.nFrames, moedas.ds, moedas.dt);
+	moedas.iAnimation = 0;
+	moedas.iFrame = 0;
 
 	glUseProgram(shaderID); // Reseta o estado do shader para evitar problemas futuros
 
@@ -298,6 +350,7 @@ int main()
 		// Desenhar o mapa
 		desenharMapa(shaderID);
 		desenharPersonagem(shaderID);
+		desenharMoedas(shaderID);
 
 		//---------------------------------------------------------------------
 		// Desenho do vampirao
@@ -327,6 +380,15 @@ int main()
 		// Poligono Preenchido - GL_TRIANGLES
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); */
 		//---------------------------------------------------------------------------
+
+		// Atualiza animação do personagem
+		currTime = glfwGetTime();
+		deltaT += currTime - lastTime;
+		lastTime = currTime;
+		if (deltaT >= 1.0 / FPS) {
+			migore.frame = (migore.frame + 1) % migore.nFrames;
+			deltaT = 0.0;
+		}
 
 		// Troca os buffers da tela
 		glfwSwapBuffers(window);
@@ -640,6 +702,9 @@ int loadTexture(string filePath, int &width, int &height)
 
 	int nrChannels;
 
+	// Corrige a orientação vertical das imagens (OpenGL espera origem no canto inferior esquerdo)
+	stbi_set_flip_vertically_on_load(true);
+
 	unsigned char *data = stbi_load(filePath.c_str(), &width, &height, &nrChannels, 0);
 
 	if (data)
@@ -695,17 +760,24 @@ void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]) {
 
 void desenharMapa(GLuint shaderID)
 {
-	//dá pra fazer um cálculo usando tilemap_width e tilemap_height
-	float x0 = 400;
-	float y0 = 100;
+	// Calcula o centro da tela
+	float tela_cx = WIDTH / 2.0f;
+	float tela_cy = HEIGHT / 2.0f;
+
+	// Tile do personagem
+	Tile tile_central = tileset[6];
+	float tile_w = tile_central.dimensions.x;
+	float tile_h = tile_central.dimensions.y;
+
+	// Offset para centralizar o personagem
+	float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f;
+	float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
 
 	for(int i=0; i<TILEMAP_HEIGHT; i++)
 	{
 		for (int j=0; j < TILEMAP_WIDTH; j++)
 		{
-			// Matriz de transformaçao do objeto - Matriz de modelo
-			mat4 model = mat4(1); //matriz identidade
-			
+			mat4 model = mat4(1);
 			Tile curr_tile = tileset[map[i][j]];
 
 			float x = x0 + (j-i) * curr_tile.dimensions.x/2.0;
@@ -715,47 +787,71 @@ void desenharMapa(GLuint shaderID)
 			model = scale(model,curr_tile.dimensions);
 			glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
 
-		vec2 offsetTex;
+			vec2 offsetTex;
+			offsetTex.s = curr_tile.iTile * curr_tile.ds;
+			offsetTex.t = 0.0;
+			glUniform2f(glGetUniformLocation(shaderID, "offsetTex"),offsetTex.s, offsetTex.t);
 
-		offsetTex.s = curr_tile.iTile * curr_tile.ds;
-		offsetTex.t = 0.0;
-		glUniform2f(glGetUniformLocation(shaderID, "offsetTex"),offsetTex.s, offsetTex.t);
-
-		glBindVertexArray(curr_tile.VAO); // Conectando ao buffer de geometria
-		glBindTexture(GL_TEXTURE_2D, curr_tile.texID); // Conectando ao buffer de textura
-
-		// Chamada de desenho - drawcall
-		// Poligono Preenchido - GL_TRIANGLES
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); 
+			glBindVertexArray(curr_tile.VAO);
+			glBindTexture(GL_TEXTURE_2D, curr_tile.texID);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 	}
 }
 
 void desenharPersonagem(GLuint shaderID)
 {
-	Tile curr_tile = tileset[6]; //tile rosa
-
-	float x0 = 400;
-	float y0 = 100;
-
-	float x = x0 + (pos.x-pos.y) * curr_tile.dimensions.x/2.0;
-	float y = y0 + (pos.x+pos.y) * curr_tile.dimensions.y/2.0;
+	// Desenha o Migoré animado no centro do tile onde ele está
+	float tela_cx = WIDTH / 2.0f;
+	float tela_cy = HEIGHT / 2.0f;
+	Tile tile_central = tileset[6];
+	float tile_w = tile_central.dimensions.x;
+	float tile_h = tile_central.dimensions.y;
+	float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f;
+	float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
+	float x = x0 + (pos.x - pos.y) * tile_w / 2.0f;
+	float y = y0 + (pos.x + pos.y) * tile_h / 2.0f;
 
 	mat4 model = mat4(1);
-	model = translate(model, vec3(x,y,0.0));
-	model = scale(model,curr_tile.dimensions);
+	model = translate(model, vec3(x, y, 0.0));
+	model = scale(model, migore.dimensions);
 	glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
 
 	vec2 offsetTex;
+	offsetTex.s = migore.frame * migore.ds;
+	offsetTex.t = migore.direcao * migore.dt;
+	glUniform2f(glGetUniformLocation(shaderID, "offsetTex"), offsetTex.s, offsetTex.t);
 
-	offsetTex.s = curr_tile.iTile * curr_tile.ds;
-	offsetTex.t = 0.0;
-	glUniform2f(glGetUniformLocation(shaderID, "offsetTex"),offsetTex.s, offsetTex.t);
-
-	glBindVertexArray(curr_tile.VAO); // Conectando ao buffer de geometria
-	glBindTexture(GL_TEXTURE_2D, curr_tile.texID); // Conectando ao buffer de textura
-
-	// Chamada de desenho - drawcall
-	// Poligono Preenchido - GL_TRIANGLES
+	glBindVertexArray(migore.VAO);
+	glBindTexture(GL_TEXTURE_2D, migore.texID);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+void desenharMoedas(GLuint shaderID) {
+    float tela_cx = WIDTH / 2.0f;
+    float tela_cy = HEIGHT / 2.0f;
+    Tile tile_central = tileset[6];
+    float tile_w = tile_central.dimensions.x;
+    float tile_h = tile_central.dimensions.y;
+    float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f;
+    float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
+
+    for (int i = 0; i < NUM_MOEDAS; i++) {
+        if (!moedasMapa[i].ativa) continue;
+        int j = moedasMapa[i].x;
+        int k = moedasMapa[i].y;
+        float x = x0 + (j - k) * tile_w / 2.0f;
+        float y = y0 + (j + k) * tile_h / 2.0f;
+        mat4 model = mat4(1);
+        model = translate(model, vec3(x, y, 0.0));
+        model = scale(model, moedas.dimensions);
+        glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
+        vec2 offsetTex;
+        offsetTex.s = moedas.iFrame * moedas.ds;
+        offsetTex.t = moedas.iAnimation * moedas.dt;
+        glUniform2f(glGetUniformLocation(shaderID, "offsetTex"), offsetTex.s, offsetTex.t);
+        glBindVertexArray(moedas.VAO);
+        glBindTexture(GL_TEXTURE_2D, moedas.texID);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
 }
