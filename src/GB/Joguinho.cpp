@@ -29,6 +29,10 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <thread>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
 
 using namespace std;
 
@@ -87,6 +91,8 @@ struct Personagem {
 	int frame;
 	int nDirecoes;
 	int nFrames;
+	bool andando = false; // novo campo para controle de movimento
+	int grupoAnimacao = 0; // 0: frames baixos, 1: frames altos
 };
 
 // Protótipo da função de callback de teclado
@@ -103,9 +109,12 @@ void leMapa(const std::string& path, int map[][TILEMAP_WIDTH]);
 void imprimeMapa(int map[][TILEMAP_WIDTH]);
 void desenharMoedas(GLuint shaderID);
 void verificaEventoMapa(int posx, int posy);
+void liberarTileComAnimacao(int x, int y, bool &evento_ativado);
+void desenharGreatJareSpirit(GLuint shaderID);
+void coletarMoeda(int indice);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
-const GLuint WIDTH = 800, HEIGHT = 600;
+const GLuint WIDTH = 960, HEIGHT = 720;
 
 // Código fonte do Vertex Shader (em GLSL): ainda hardcoded
 const GLchar *vertexShaderSource = R"(
@@ -142,9 +151,46 @@ int map[TILEMAP_WIDTH][TILEMAP_HEIGHT]; // Mapa principal
 int barreiras[TILEMAP_WIDTH][TILEMAP_HEIGHT]; // Mapa das barreiras
 Personagem migore; // Personagem principal
 Sprite moedas;  // Sprite das moedas
+Sprite greatJareSpirit; // Sprite do great_jare_spirit
+bool greatJareSpirit_ativo = false; // Controla se o sprite será exibido
+double pontuacao = 0;
+int vidas = 5;
 
 // INICIALIZA OS CONTROLES DE EVENTOS
 static bool evento_38_ativado = false;
+static bool evento_210_ativado = false;
+static bool evento_45_ativado = false;
+static bool evento_512_ativado = false;
+static bool evento_82_ativado = false;
+static bool evento_83_ativado = false;
+static bool evento_71_ativado = false;
+static bool evento_41_ativado = false;
+static bool evento_118_ativado = false;
+static bool evento_1312_ativado = false;
+static bool evento_jare_capturado = false;
+
+// --- Controle de animação de troca de tile ---
+struct AnimacaoTile {
+    bool ativa = true;
+    int x = 0, y = 0;
+    int tileInicial = 0;
+    int tileFinal = 0;
+    double tempo = 0.0;
+    double tempoTotal = 1.0; // duração total da animação em segundos
+};
+static std::vector<AnimacaoTile> animacoesTile;
+
+void animarTrocaTile(int x, int y, int tileFinal) {
+    AnimacaoTile novaAnim;
+    novaAnim.x = x;
+    novaAnim.y = y;
+    novaAnim.tileInicial = map[x][y];
+    novaAnim.tileFinal = tileFinal;
+    novaAnim.tempo = 0.0;
+    novaAnim.tempoTotal = 1.0;
+    novaAnim.ativa = true;
+    animacoesTile.push_back(novaAnim);
+}
 
 // Struct para representar uma moeda no mapa
 struct Moeda {
@@ -156,7 +202,8 @@ struct Moeda {
 Moeda moedasMapa[] = {
     {4, 0, false},
     {6, 2, true},
-    {7, 13, true}
+    {7, 13, true},
+	{13, 11, false}
 };
 const int NUM_MOEDAS = sizeof(moedasMapa) / sizeof(Moeda);
 
@@ -288,6 +335,18 @@ int main()
 	moedas.iAnimation = 0;
 	moedas.iFrame = 0;
 
+	// Carrega o sprite do great_jare_spirit (sem animação)
+	int jareWidth, jareHeight;
+	greatJareSpirit.nAnimations = 1;
+	greatJareSpirit.nFrames = 1;
+	greatJareSpirit.texID = loadTexture("../assets/sprites/great_jare_spirit.png", jareWidth, jareHeight);
+	greatJareSpirit.dimensions = vec3(128, 128, 1.0); // Tamanho ajustável
+	greatJareSpirit.ds = 1.0f;
+	greatJareSpirit.dt = 1.0f;
+	greatJareSpirit.VAO = setupSprite(greatJareSpirit.nAnimations, greatJareSpirit.nFrames, greatJareSpirit.ds, greatJareSpirit.dt);
+	greatJareSpirit.iAnimation = 0;
+	greatJareSpirit.iFrame = 0;
+
 	glUseProgram(shaderID); // Reseta o estado do shader para evitar problemas futuros
 
 	double prev_s = glfwGetTime();	// Define o "tempo anterior" inicial.
@@ -302,7 +361,7 @@ int main()
 	glUniform1i(glGetUniformLocation(shaderID, "tex_buff"), 0);
 
 	// Matriz de projeção paralela ortográfica
-	mat4 projection = ortho(0.0, 800.0, 600.0, 0.0, -1.0, 1.0);
+	mat4 projection = ortho(0.0, 960.0, 720.0, 0.0, -1.0, 1.0);
 	glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, value_ptr(projection));
 
 	glEnable(GL_DEPTH_TEST); // Habilita o teste de profundidade
@@ -316,10 +375,16 @@ int main()
 	double deltaT = 0.0;
 	double currTime = glfwGetTime();
 	double FPS = 12.0;
+	
 
 	// Loop da aplicação - "game loop"
+    static double prev_anim_s = glfwGetTime(); // Corrigido: fora do if
 	while (!glfwWindowShouldClose(window))
 	{
+		// ADICIONAR LOGICA DO GAME OVER
+		// ADICIONAR A LOGICA DO RESET
+
+
 		// Este trecho de código é totalmente opcional: calcula e mostra a contagem do FPS na barra de título
 		{
 			double curr_s = glfwGetTime();		// Obtém o tempo atual.
@@ -356,44 +421,51 @@ int main()
 		desenharMapa(shaderID);
 		desenharPersonagem(shaderID);
 		desenharMoedas(shaderID);
+		desenharGreatJareSpirit(shaderID);
 
-		//---------------------------------------------------------------------
-		// Desenho do vampirao
-		// Matriz de transformaçao do objeto - Matriz de modelo
-		/* model = mat4(1); //matriz identidade
-		model = translate(model,vampirao.position);
-		model = rotate(model, radians(0.0f), vec3(0.0, 0.0, 1.0));
-		model = scale(model,vampirao.dimensions);
-		glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
-
-		vec2 offsetTex;
-
-		if (deltaT >= 1.0/FPS)
-		{
-			vampirao.iFrame = (vampirao.iFrame + 1) % vampirao.nFrames; // incremento "circular"
-			lastTime = currTime;
-		}
-
-		offsetTex.s = vampirao.iFrame * vampirao.ds;
-		offsetTex.t = 0.0;
-		glUniform2f(glGetUniformLocation(shaderID, "offsetTex"),offsetTex.s, offsetTex.t);
-
-		glBindVertexArray(vampirao.VAO); // Conectando ao buffer de geometria
-		glBindTexture(GL_TEXTURE_2D, vampirao.texID); // Conectando ao buffer de textura
-
-		// Chamada de desenho - drawcall
-		// Poligono Preenchido - GL_TRIANGLES
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); */
-		//---------------------------------------------------------------------------
 
 		// Atualiza animação do personagem
 		currTime = glfwGetTime();
 		deltaT += currTime - lastTime;
 		lastTime = currTime;
-		if (deltaT >= 1.0 / FPS) {
-			migore.frame = (migore.frame + 1) % migore.nFrames;
-			deltaT = 0.0;
+		static int frameAnim = 0;
+		if (migore.andando) {
+			if (deltaT >= 1.0 / FPS) {
+				frameAnim = (frameAnim + 1) % 2; // Só 2 frames por grupo
+				migore.frame = migore.grupoAnimacao * 2 + frameAnim;
+				deltaT = 0.0;
+			}
+		} else {
+			migore.frame = 0;
+			frameAnim = 0;
 		}
+
+		// --- Atualiza animações de troca de tile, se houver ---
+        double curr_s = glfwGetTime();
+        double elapsed = curr_s - prev_anim_s;
+        prev_anim_s = curr_s;
+        if (!animacoesTile.empty()) {
+            for (auto &anim : animacoesTile) {
+                anim.tempo += elapsed;
+                // alterna o tile a cada 0.08s
+                if (fmod(anim.tempo, 0.16) < 0.08) {
+                    map[anim.x][anim.y] = anim.tileInicial;
+                } else {
+                    map[anim.x][anim.y] = anim.tileFinal;
+                }
+            }
+            // Remove animações finalizadas
+            animacoesTile.erase(
+                std::remove_if(animacoesTile.begin(), animacoesTile.end(), [](AnimacaoTile &anim) {
+                    if (anim.tempo >= anim.tempoTotal) {
+                        map[anim.x][anim.y] = anim.tileFinal;
+                        return true;
+                    }
+                    return false;
+                }),
+                animacoesTile.end()
+            );
+        }
 
 		// Troca os buffers da tela
 		glfwSwapBuffers(window);
@@ -414,51 +486,68 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
 	vec2 aux = pos;
 
+	migore.andando = false; // por padrão, parado
+
 	if (key == GLFW_KEY_W && action == GLFW_PRESS) // NORTE
 	{
 		if (pos.x > 0) pos.x--;
 		if (pos.y > 0) pos.y--;
 		migore.direcao = 0; // N
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2; // sorteia grupo
 	}
 	if (key == GLFW_KEY_Q && action == GLFW_PRESS) // NOROESTE
 	{
 		if (pos.x > 0) pos.x--;
 		migore.direcao = 1; // NO
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_A && action == GLFW_PRESS) // OESTE
 	{
 		if (pos.x > 0) pos.x--;
 		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
 		migore.direcao = 2; // O
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_Z && action == GLFW_PRESS) // SUDOESTE
 	{
 		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
 		migore.direcao = 3; // SO
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_S && action == GLFW_PRESS) // SUL
 	{
 		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
 		if (pos.y <= TILEMAP_HEIGHT - 2) pos.y++;
 		migore.direcao = 4; // S
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_C && action == GLFW_PRESS) // SUDESTE
 	{
 		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
 		migore.direcao = 5; // SE
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_D && action == GLFW_PRESS) // LESTE
 	{
 		if (pos.x <= TILEMAP_WIDTH -2) pos.x++;
 		if (pos.y > 0) pos.y--;
 		migore.direcao = 6; // L
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
 	if (key == GLFW_KEY_E && action == GLFW_PRESS) // NORDESTE
 	{
 		if (pos.y > 0) pos.y--;
 		migore.direcao = 7; // NE
+		migore.andando = true;
+		migore.grupoAnimacao = rand() % 2;
 	}
-
 	// Nova lógica de colisão: só permite andar se barreiras[x][y] == 0
 	if (barreiras[(int)pos.x][(int)pos.y] != 0)
 	{
@@ -472,23 +561,82 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
 // Função para verificar eventos do tile atual do mapa (lava, moedas, etc)
 void verificaEventoMapa(int posx, int posy) {
-    // Log de chamada da função
-    // Evento: Lava (sprite 3)
+
+	// --------------------- LÓGICA DA LAVA
     if (map[posx][posy] == 3) {
         std::cout << "Você morreu! Caiu na lava!" << std::endl;
         pos.x = 0;
         pos.y = 0;
-        // Outros efeitos podem ser adicionados aqui
+        vidas--;
     }
 
+	// --------------------- LÓGICA DAS MOEDAS
+	if(posx == 4 && posy == 0 && moedasMapa[0].ativa) {
+		coletarMoeda(0);
+	}
+	if(posx == 6 && posy == 2 && moedasMapa[1].ativa) {
+		coletarMoeda(1);
+	}
+	if(posx == 7 && posy == 13 && moedasMapa[2].ativa) {
+		coletarMoeda(2);
+	}
+	if(posx == 13 && posy == 11 && moedasMapa[3].ativa) {
+		coletarMoeda(3);
+	}
+
+	// --------------------- LÓGICA DO GREAT JARE SPIRIT
+	if (posx == 12 && posy == 11 && greatJareSpirit_ativo && !evento_jare_capturado) {
+		std::cout << "Você encontrou o Great Jare Spirit!" << std::endl;
+		animarTrocaTile(12, 11, 5);
+		greatJareSpirit_ativo = false;
+		evento_jare_capturado = true;
+		pontuacao *= 0.15f;
+		
+	}
+
+	// --------------------- LOGICAS DOS BOTOES
     // Primeiro botão
     if (posx == 3 && posy == 7 && !evento_38_ativado) {
-		// atualiza para CHÃO (0) e libera colisão
-		map[2][8]       = 0;  
-		barreiras[2][8] = 0;  
-		evento_38_ativado = true;
-		cout << "[LOG] Evento especial em (3,7): tile (2,8) agora CHAO (0) e barreira liberada!" << std::endl;
-	}
+        liberarTileComAnimacao(2, 8, evento_38_ativado);
+    }
+    // Segundo botão
+    if (posx == 1 && posy == 9 && !evento_210_ativado) {
+        liberarTileComAnimacao(2, 10, evento_210_ativado);
+    }
+    // Terceiro botão
+    if (posx == 2 && posy == 13 && !evento_45_ativado) {
+        liberarTileComAnimacao(4, 5, evento_45_ativado);
+    }
+    // Quarto botão
+    if (posx == 5 && posy == 11 && !evento_512_ativado) {
+        liberarTileComAnimacao(5, 12, evento_512_ativado);
+    }
+    // Quinto botão
+    if (posx == 9 && posy == 13 && (!evento_82_ativado)) {
+        liberarTileComAnimacao(8, 2, evento_82_ativado);
+		liberarTileComAnimacao(8, 3, evento_83_ativado);
+    }
+    // Sexto botão
+    if (posx == 13 && posy == 1 && !evento_71_ativado) {
+        liberarTileComAnimacao(7, 1, evento_71_ativado);
+    }
+    // Sétimo botão
+    if (posx == 5 && posy == 1 && !evento_41_ativado) {
+        liberarTileComAnimacao(4, 1, evento_41_ativado);
+		moedasMapa[0].ativa = true; // Ativa a moeda que está escondida
+    }
+    // Oitavo botão
+    if (posx == 5 && posy == 2 && !evento_118_ativado) {
+        liberarTileComAnimacao(11, 8, evento_118_ativado);
+    }
+    // Nono botão
+    if (posx == 14 && posy == 3 && !evento_1312_ativado) {
+        liberarTileComAnimacao(12, 10, evento_1312_ativado);
+		// barreiras[12][12] = 1; // Bloqueia a coordenada 12,12
+		// barreiras[13][12] = 1; // Bloqueia a coordenada 13,12
+		moedasMapa[3].ativa = true; // Ativa a moeda final
+		greatJareSpirit_ativo = true; // Ativa o sprite do Great Jare Spirit
+    }
 
     
 }
@@ -824,14 +972,20 @@ void desenharMoedas(GLuint shaderID) {
     float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f;
     float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
 
+    double tempo = glfwGetTime();
+    float amplitude = 12.0f; // altura máxima do pulo
+    float freq = 1.5f; // velocidade da flutuação
+
     for (int i = 0; i < NUM_MOEDAS; i++) {
         if (!moedasMapa[i].ativa) continue;
         int j = moedasMapa[i].x;
         int k = moedasMapa[i].y;
         float x = x0 + (j - k) * tile_w / 2.0f;
         float y = y0 + (j + k) * tile_h / 2.0f;
+        // Aplica deslocamento vertical animado
+        float offsetY = amplitude * sinf((float)tempo * freq + i);
         mat4 model = mat4(1);
-        model = translate(model, vec3(x, y, 0.0));
+        model = translate(model, vec3(x, y + offsetY, 0.0));
         model = scale(model, moedas.dimensions);
         glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
         vec2 offsetTex;
@@ -842,4 +996,52 @@ void desenharMoedas(GLuint shaderID) {
         glBindTexture(GL_TEXTURE_2D, moedas.texID);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
+}
+
+// Função para desenhar o great_jare_spirit
+void desenharGreatJareSpirit(GLuint shaderID) {
+    if (!greatJareSpirit_ativo) return;
+    // Desenha centralizando o centro do sprite no centro do tile (13,11)
+    Tile tile_central = tileset[6];
+    float tile_w = tile_central.dimensions.x;
+    float tile_h = tile_central.dimensions.y;
+    float tela_cx = WIDTH / 2.0f;
+    float tela_cy = HEIGHT / 2.0f;
+    float x0 = tela_cx - (pos.x - pos.y) * tile_w / 2.0f - tile_w / 2.0f;
+    float y0 = tela_cy - (pos.x + pos.y) * tile_h / 2.0f;
+    int j = 13, k = 11;
+    float x = x0 + (j - k) * tile_w / 2.0f;
+    float y = y0 + (j + k) * tile_h / 2.0f;
+    // Centraliza o sprite no tile
+    x = x + tile_w / 2.0f - greatJareSpirit.dimensions.x / 2.0f;
+    y = y + tile_h / 2.0f - greatJareSpirit.dimensions.y / 2.0f;
+    mat4 model = mat4(1);
+    model = translate(model, vec3(x, y, 0.0));
+    model = scale(model, greatJareSpirit.dimensions);
+    glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
+    vec2 offsetTex;
+    offsetTex.s = 0.0f;
+    offsetTex.t = 0.0f;
+    glUniform2f(glGetUniformLocation(shaderID, "offsetTex"), offsetTex.s, offsetTex.t);
+    glBindVertexArray(greatJareSpirit.VAO);
+    glBindTexture(GL_TEXTURE_2D, greatJareSpirit.texID);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+// Função genérica para animar e liberar tile
+void liberarTileComAnimacao(int x, int y, bool &evento_ativado) {
+    if (!evento_ativado) {
+        animarTrocaTile(x, y, 0); // anima para chão
+        barreiras[x][y] = 0; // libera barreira
+        evento_ativado = true;
+        cout << "[LOG] Evento especial em (" << x << "," << y << "): ANIMANDO tile para liberar!" << std::endl;
+    }
+}
+
+// Função para coletar moeda
+void coletarMoeda(int indice) {
+    moedasMapa[indice].ativa = false;
+    pontuacao += 340;
+    std::cout << "Você coletou uma moeda! Pontuação: " << pontuacao << std::endl;
+    animarTrocaTile(moedasMapa[indice].x, moedasMapa[indice].y, 5);
 }
