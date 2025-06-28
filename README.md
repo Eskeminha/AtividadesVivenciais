@@ -41,10 +41,11 @@ Antes de tudo, verifique se você possui instalado em sua máquina:
 - **Linux/macOS**: make ou ninja (conforme o gerador escolhido)
 
 
-Como rodar:
+## 🕹️ Como rodar:
+
 Acesse o repositório pelo VSCode.
 
-Pressione CTRL + SHIFT + P
+Pressione CTRL + SHIFT + P.
 
 Selecione CMake Configure e selecione o seu compilador.
 
