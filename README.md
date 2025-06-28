@@ -43,7 +43,9 @@ Antes de tudo, verifique se você possui instalado em sua máquina:
 
 ## 🕹️ Como rodar:
 
-Acesse o repositório pelo VSCode.
+Clone o repositório.
+
+Abra o repositório pelo VSCode.
 
 Pressione CTRL + SHIFT + P.
 
