@@ -1,5 +1,22 @@
 # 🖥️ Processamento Gráfico — UNISINOS
 
+![Build](https://img.shields.io/badge/build-manual-lightgrey)
+![License](https://img.shields.io/badge/license-Acadêmico-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-informational)
+![CMake](https://img.shields.io/badge/CMake-%3E=3.10-blue)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
+
+## 📑 Sumário
+- [Professora](#-professora)
+- [Alunos](#-alunos)
+- [Objetivo do Repositório](#-objetivo-do-repositório)
+- [Informações adicionais](#-informações-adicionais)
+- [Pré-requisitos](#-pré-requisitos)
+- [Como rodar](#-como-rodar)
+- [FAQ](#-faq)
+- [Observações](#-observações)
+- [Licença](#-licença)
+
 Repositório utilizado para a **entrega de trabalhos** da disciplina **Processamento Gráfico**, do curso de **Ciência da Computação** da **Universidade do Vale do Rio dos Sinos (UNISINOS)**.
 
 ## 👨‍🏫 Professora
@@ -57,12 +74,32 @@ Assim que configurado, acesse a pasta build e digite:
 
 Após gerar os arquivos executáveis, escolha o programa desejado e digite:
 
+**No Windows:**
+
     ./Nome_Do_Arquivo.exe
+
+**No Linux/macOS:**
+
+    ./Nome_Do_Arquivo
+
 ---
+
+## ❓ FAQ
+
+- **Erro: 'GLFW/glfw3.h' not found**
+  - Verifique se a biblioteca GLFW está instalada e corretamente referenciada no CMakeLists.txt.
+- **Erro: 'stb_image.h' not found**
+  - Baixe o arquivo em https://github.com/nothings/stb e coloque em `include/`.
+- **Problemas com CMake**
+  - Confirme se a versão instalada é ≥ 3.10 e se o caminho está no PATH do sistema.
 
 ## ⚠️ Observações
 
 - Este repositório é **exclusivamente acadêmico**.  
 - Mantenha sempre o template original e os comentários fornecidos pelo corpo docente.  
 - Problemas de compilação geralmente estão relacionados a dependências faltantes ou versão incorreta do CMake.
+
+## 📝 Licença
+
+Uso estritamente acadêmico, conforme diretrizes da disciplina. Não utilize para fins comerciais ou de distribuição pública.
 
