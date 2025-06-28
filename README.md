@@ -25,3 +25,41 @@ Este repositório contém os trabalhos desenvolvidos ao longo da disciplina. Cad
 - **Semestre:** *2025/A*
 
 *Este repositório tem fins exclusivamente acadêmicos.*
+
+## 📦 Pré-requisitos
+
+Antes de tudo, verifique se você possui instalado em sua máquina:
+
+- **CMake** (versão ≥ 3.10)  
+- **Compiler C++ compatível** (GCC, Clang, MSVC)  
+- Bibliotecas e dependências OpenGL:
+  - GLFW  
+  - GLAD  
+  - GLM  
+  - stb_image / stb_easy_font  
+- **Windows**: MinGW-Make ou Visual Studio (MSVC)  
+- **Linux/macOS**: make ou ninja (conforme o gerador escolhido)
+
+
+Como rodar:
+Acesse o repositório pelo VSCode.
+
+Pressione CTRL + SHIFT + P
+
+Selecione CMake Configure e selecione o seu compilador.
+
+Assim que configurado, acesse a pasta build e digite:
+
+    cmake --build .
+
+Após gerar os arquivos executáveis, escolha o programa desejado e digite:
+
+    ./Nome_Do_Arquivo.exe
+---
+
+## ⚠️ Observações
+
+- Este repositório é **exclusivamente acadêmico**.  
+- Mantenha sempre o template original e os comentários fornecidos pelo corpo docente.  
+- Problemas de compilação geralmente estão relacionados a dependências faltantes ou versão incorreta do CMake.
+
