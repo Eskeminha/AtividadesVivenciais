@@ -295,7 +295,7 @@ int main()
 	// #endif
 
 	// Criação da janela GLFW
-	GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Ola Triangulo! -- Rossana", nullptr, nullptr);
+	GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Labirintaré - A jornada.", nullptr, nullptr);
 	if (!window)
 	{
 		std::cerr << "Falha ao criar a janela GLFW" << std::endl;
@@ -436,7 +436,7 @@ int main()
 	double lastTime = 0.0;
 	double deltaT = 0.0;
 	double currTime = glfwGetTime();
-	double FPS = 12.0;
+	double FPS = 24.0;
 	
 
 	// Loop da aplicação - "game loop"
